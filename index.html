@@ -1,0 +1,20 @@
+<script>
+    function showPhotos() {
+      const files = document.getElementById('photos').files;
+      const preview = document.getElementById('preview');
+      preview.replaceChildren();
+
+      document.getElementById('message').textContent =
+        files.length + ' photo(s) selected. Preview only; photos are not uploaded or saved.';
+
+      for (const file of files) {
+        if (!file.type.startsWith('image/')) continue;
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        img.alt = file.name;
+        preview.appendChild(img);
+      }
+    }
+  </script>
+</body>
+</html>

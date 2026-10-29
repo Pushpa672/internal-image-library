@@ -1,19 +1,324 @@
-<script>
-    function showPhotos() {
-      const files = document.getElementById('photos').files;
-      const preview = document.getElementById('preview');
-      preview.replaceChildren();
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Internal Image Library</title>
 
-      document.getElementById('message').textContent =
-        files.length + ' photo(s) selected. Preview only; photos are not uploaded or saved.';
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f3f5f9;
+      color: #222;
+    }
+
+    header {
+      background: #17365d;
+      color: white;
+      padding: 24px;
+      text-align: center;
+    }
+
+    main {
+      max-width: 1000px;
+      margin: 30px auto;
+      padding: 20px;
+    }
+
+    .panel {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      margin-bottom: 25px;
+      box-shadow: 0 2px 10px #00000012;
+    }
+
+    label {
+      display: block;
+      margin-top: 14px;
+      font-weight: bold;
+    }
+
+    input, select, button {
+      font: inherit;
+      padding: 12px;
+      margin-top: 7px;
+      border-radius: 6px;
+    }
+
+    input, select {
+      width: 100%;
+      border: 1px solid #ccc;
+      background: white;
+    }
+
+    button {
+      border: none;
+      background: #17365d;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #24518a;
+    }
+
+    .upload-button {
+      width: 100%;
+      margin-top: 20px;
+    }
+
+    #message {
+      color: #17365d;
+      font-weight: bold;
+    }
+
+    #gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 18px;
+      margin-top: 20px;
+    }
+
+    .photo {
+      background: white;
+      border-radius: 10px;
+      padding: 12px;
+      overflow-wrap: anywhere;
+      box-shadow: 0 2px 8px #00000012;
+    }
+
+    .photo img {
+      width: 100%;
+      height: 170px;
+      object-fit: cover;
+      border-radius: 6px;
+    }
+
+    .photo p {
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .delete-button {
+      background: #a52626;
+      width: 100%;
+    }
+
+    .empty-message {
+      color: #666;
+      padding: 12px 0;
+    }
+
+    footer {
+      text-align: center;
+      color: #666;
+      padding: 20px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Internal Image Library</h1>
+    <p>Upload, organize and find your office photos</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Upload Images</h2>
+      <p>Select photos and enter their information below.</p>
+
+      <form id="uploadForm">
+        <label for="photos">Choose photos</label>
+        <input
+          id="photos"
+          type="file"
+          accept="image/*"
+          multiple
+          required
+        >
+
+        <label for="project">Project name</label>
+        <input
+          id="project"
+          type="text"
+          placeholder="Enter project name"
+        >
+
+        <label for="location">Location</label>
+        <input
+          id="location"
+          type="text"
+          placeholder="Enter location"
+        >
+
+        <label for="category">Category</label>
+        <select id="category">
+          <option>Project</option>
+          <option>Internal</option>
+          <option>Events</option>
+          <option>Profile / Candid</option>
+          <option>Partner Logos</option>
+        </select>
+
+        <label for="tags">Tags</label>
+        <input
+          id="tags"
+          type="text"
+          placeholder="meeting, event, team"
+        >
+
+        <button class="upload-button" type="submit">
+          Add Images
+        </button>
+      </form>
+
+      <p id="message" role="status"></p>
+    </section>
+
+    <section>
+      <h2>Search Image Library</h2>
+
+      <input
+        id="search"
+        type="search"
+        placeholder="Search by filename, project, location or tags"
+        aria-label="Search images"
+      >
+
+      <div id="gallery">
+        <p class="empty-message">
+          No photos added yet. Select photos above to get started.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Internal Image Library - First Prototype
+  </footer>
+
+  <script>
+    const form = document.getElementById("uploadForm");
+    const photosInput = document.getElementById("photos");
+    const gallery = document.getElementById("gallery");
+    const searchInput = document.getElementById("search");
+    const message = document.getElementById("message");
+
+    const records = [];
+
+    form.addEventListener("submit", function(event) {
+      event.preventDefault();
+
+      const files = Array.from(photosInput.files);
+      const project = document.getElementById("project").value.trim();
+      const location = document.getElementById("location").value.trim();
+      const category = document.getElementById("category").value;
+      const tags = document.getElementById("tags").value.trim();
+
+      let added = 0;
 
       for (const file of files) {
-        if (!file.type.startsWith('image/')) continue;
-        const img = document.createElement('img');
-        img.src = URL.createObjectURL(file);
-        img.alt = file.name;
-        preview.appendChild(img);
+        if (!file.type.startsWith("image/")) {
+          continue;
+        }
+
+        records.push({
+          file: file,
+          url: URL.createObjectURL(file),
+          project: project,
+          location: location,
+          category: category,
+          tags: tags
+        });
+
+        added++;
       }
+
+      message.textContent =
+        added + " photo(s) added to this browser session. " +
+        "They are not uploaded to cloud storage.";
+
+      renderGallery();
+      form.reset();
+    });
+
+    searchInput.addEventListener("input", renderGallery);
+
+    function renderGallery() {
+      gallery.replaceChildren();
+
+      const query = searchInput.value.toLowerCase().trim();
+
+      const filtered = records.filter(function(item) {
+        const searchable = [
+          item.file.name,
+          item.project,
+          item.location,
+          item.category,
+          item.tags
+        ].join(" ").toLowerCase();
+
+        return searchable.includes(query);
+      });
+
+      if (filtered.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "empty-message";
+        empty.textContent = records.length === 0
+          ? "No photos added yet."
+          : "No matching photos found.";
+
+        gallery.appendChild(empty);
+        return;
+      }
+
+      filtered.forEach(function(item) {
+        const card = document.createElement("article");
+        card.className = "photo";
+
+        const img = document.createElement("img");
+        img.src = item.url;
+        img.alt = item.file.name;
+
+        const title = document.createElement("strong");
+        title.textContent = item.file.name;
+
+        const details = document.createElement("p");
+        details.textContent =
+          "Project: " + (item.project || "Not specified") +
+          "\nLocation: " + (item.location || "Not specified") +
+          "\nCategory: " + item.category +
+          "\nTags: " + (item.tags || "None");
+
+        details.style.whiteSpace = "pre-line";
+
+        const deleteButton = document.createElement("button");
+        deleteButton.className = "delete-button";
+        deleteButton.textContent = "Remove from preview";
+
+        deleteButton.addEventListener("click", function() {
+          const index = records.indexOf(item);
+
+          if (index !== -1) {
+            URL.revokeObjectURL(item.url);
+            records.splice(index, 1);
+          }
+
+          renderGallery();
+          message.textContent = "Photo removed from this session.";
+        });
+
+        card.append(img, title, details, deleteButton);
+        gallery.appendChild(card);
+      });
     }
   </script>
 </body>

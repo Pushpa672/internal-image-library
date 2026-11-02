@@ -223,7 +223,7 @@
   SUPABASE_URL,
   SUPABASE_KEY
 );
-        const headers = new Headers(options.headers || {});
+       
 
         if (
           headers.get("Authorization") ===
@@ -232,9 +232,7 @@
           headers.delete("Authorization");
         }
 
-        return fetch(url, {
-          ...options,
-          headers: headers
+       
         });
       }
     }

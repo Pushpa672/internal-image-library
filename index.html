@@ -68,6 +68,11 @@
       background: #24518a;
     }
 
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
     .upload-button {
       width: 100%;
       margin-top: 20px;
@@ -76,6 +81,7 @@
     #message {
       color: #17365d;
       font-weight: bold;
+      overflow-wrap: anywhere;
     }
 
     #gallery {
@@ -103,11 +109,7 @@
     .photo p {
       font-size: 14px;
       line-height: 1.5;
-    }
-
-    .delete-button {
-      background: #a52626;
-      width: 100%;
+      white-space: pre-line;
     }
 
     .empty-message {
@@ -175,7 +177,7 @@
           placeholder="meeting, event, team"
         >
 
-        <button class="upload-button" type="submit">
+        <button class="upload-button" id="uploadButton" type="submit">
           Add Images
         </button>
       </form>
@@ -194,9 +196,7 @@
       >
 
       <div id="gallery">
-        <p class="empty-message">
-          No photos added yet. Select photos above to get started.
-        </p>
+        <p class="empty-message">Loading photos...</p>
       </div>
     </section>
   </main>
@@ -204,62 +204,248 @@
   <footer>
     Internal Image Library - First Prototype
   </footer>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
- <script>
-const SUPABASE_URL = "https://oxbvfhignorwbyuzdhbw.supabase.co";
-const SUPABASE_KEY = "PASTE_YOUR_REAL_PUBLISHABLE_KEY_HERE";
 
-const supabaseClient = window.supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_KEY
-);
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    // SUPABASE CONNECTION
+    const SUPABASE_URL =
+      "https://oxbvfhignorwbyuzdhbw.supabase.co";
+
+    // Replace this with your actual Supabase Publishable key.
+    const SUPABASE_KEY =
+      "PASTE_YOUR_REAL_PUBLISHABLE_KEY_HERE";
+
+    // Exact name of your Supabase Storage bucket.
+    const BUCKET_NAME = "Office Image Library";
+
+    const supabaseClient = window.supabase.createClient(
+      SUPABASE_URL,
+      SUPABASE_KEY
+    );
 
     const form = document.getElementById("uploadForm");
     const photosInput = document.getElementById("photos");
     const gallery = document.getElementById("gallery");
     const searchInput = document.getElementById("search");
     const message = document.getElementById("message");
+    const uploadButton = document.getElementById("uploadButton");
 
-    const records = [];
+    let records = [];
 
-    form.addEventListener("submit", function(event) {
+    // Encode photo information into its storage filename.
+    function encodeMetadata(data) {
+      const bytes = new TextEncoder().encode(JSON.stringify(data));
+      let binary = "";
+
+      bytes.forEach(function(byte) {
+        binary += String.fromCharCode(byte);
+      });
+
+      return btoa(binary)
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/g, "");
+    }
+
+    // Read photo information from its storage filename.
+    function decodeMetadata(name) {
+      try {
+        const parts = name.split("~");
+
+        if (parts.length < 3) {
+          return null;
+        }
+
+        let encoded = parts[1]
+          .replace(/-/g, "+")
+          .replace(/_/g, "/");
+
+        while (encoded.length % 4) {
+          encoded += "=";
+        }
+
+        const binary = atob(encoded);
+        const bytes = Uint8Array.from(
+          binary,
+          function(character) {
+            return character.charCodeAt(0);
+          }
+        );
+
+        return JSON.parse(new TextDecoder().decode(bytes));
+      } catch (error) {
+        return null;
+      }
+    }
+
+    // Load previously uploaded photos from Supabase.
+    async function loadPhotos() {
+      gallery.innerHTML = "";
+      const allFiles = [];
+      let offset = 0;
+
+      try {
+        while (true) {
+          const { data, error } =
+            await supabaseClient.storage
+              .from(BUCKET_NAME)
+              .list("images", {
+                limit: 1000,
+                offset: offset,
+                sortBy: {
+                  column: "created_at",
+                  order: "desc"
+                }
+              });
+
+          if (error) {
+            throw error;
+          }
+
+          const files = data.filter(function(file) {
+            return file.id && file.name;
+          });
+
+          allFiles.push(...files);
+
+          if (data.length < 1000) {
+            break;
+          }
+
+          offset += 1000;
+        }
+
+        records = allFiles.map(function(file) {
+          const path = "images/" + file.name;
+
+          const result = supabaseClient.storage
+            .from(BUCKET_NAME)
+            .getPublicUrl(path);
+
+          const metadata = decodeMetadata(file.name) || {};
+
+          return {
+            name: metadata.name || file.name,
+            project: metadata.project || "",
+            location: metadata.location || "",
+            category: metadata.category || "Project",
+            tags: metadata.tags || "",
+            url: result.data.publicUrl,
+            path: path
+          };
+        });
+
+        renderGallery();
+
+      } catch (error) {
+        gallery.innerHTML = "";
+
+        const empty = document.createElement("p");
+        empty.className = "empty-message";
+        empty.textContent =
+          "Could not load photos: " + error.message;
+
+        gallery.appendChild(empty);
+
+        message.textContent =
+          "Please check your Supabase bucket and permissions.";
+      }
+    }
+
+    // Upload selected photos to Supabase Storage.
+    form.addEventListener("submit", async function(event) {
       event.preventDefault();
 
       const files = Array.from(photosInput.files);
-      const project = document.getElementById("project").value.trim();
-      const location = document.getElementById("location").value.trim();
-      const category = document.getElementById("category").value;
-      const tags = document.getElementById("tags").value.trim();
+      const project =
+        document.getElementById("project").value.trim();
+      const location =
+        document.getElementById("location").value.trim();
+      const category =
+        document.getElementById("category").value;
+      const tags =
+        document.getElementById("tags").value.trim();
 
-      let added = 0;
+      if (files.length === 0) {
+        message.textContent = "Please select at least one photo.";
+        return;
+      }
+
+      uploadButton.disabled = true;
+      message.textContent = "Uploading photos. Please wait...";
+
+      let uploaded = 0;
+      const errors = [];
 
       for (const file of files) {
         if (!file.type.startsWith("image/")) {
+          errors.push(file.name + ": Not an image.");
           continue;
         }
 
-        records.push({
-          file: file,
-          url: URL.createObjectURL(file),
-          project: project,
-          location: location,
-          category: category,
-          tags: tags
-        });
+        try {
+          const metadata = {
+            name: file.name,
+            project: project,
+            location: location,
+            category: category,
+            tags: tags
+          };
 
-        added++;
+          const encoded = encodeMetadata(metadata);
+
+          const extension = (
+            file.name.split(".").pop() || "jpg"
+          ).toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+
+          const uniqueId =
+            (window.crypto && window.crypto.randomUUID)
+              ? window.crypto.randomUUID()
+              : Date.now() + "-" + Math.random().toString(36).slice(2);
+
+          const storagePath =
+            "images/" + uniqueId + "~" + encoded + "~" + extension;
+
+          const { error } = await supabaseClient.storage
+            .from(BUCKET_NAME)
+            .upload(storagePath, file, {
+              contentType: file.type,
+              cacheControl: "3600",
+              upsert: false
+            });
+
+          if (error) {
+            throw error;
+          }
+
+          uploaded++;
+
+        } catch (error) {
+          errors.push(file.name + ": " + error.message);
+        }
       }
 
-      message.textContent =
-        added + " photo(s) added to this browser session. " +
-        "They are not uploaded to cloud storage.";
+      uploadButton.disabled = false;
 
-      renderGallery();
-      form.reset();
+      if (uploaded > 0) {
+        message.textContent =
+          uploaded + " photo(s) uploaded successfully to Supabase.";
+        form.reset();
+        await loadPhotos();
+      } else {
+        message.textContent = "No photos were uploaded.";
+      }
+
+      if (errors.length > 0) {
+        message.textContent += " Errors: " + errors.join(" | ");
+      }
     });
 
+    // Search photos.
     searchInput.addEventListener("input", renderGallery);
 
+    // Display photos and their information.
     function renderGallery() {
       gallery.replaceChildren();
 
@@ -267,7 +453,7 @@ const supabaseClient = window.supabase.createClient(
 
       const filtered = records.filter(function(item) {
         const searchable = [
-          item.file.name,
+          item.name,
           item.project,
           item.location,
           item.category,
@@ -294,10 +480,11 @@ const supabaseClient = window.supabase.createClient(
 
         const img = document.createElement("img");
         img.src = item.url;
-        img.alt = item.file.name;
+        img.alt = item.name;
+        img.loading = "lazy";
 
         const title = document.createElement("strong");
-        title.textContent = item.file.name;
+        title.textContent = item.name;
 
         const details = document.createElement("p");
         details.textContent =
@@ -306,30 +493,14 @@ const supabaseClient = window.supabase.createClient(
           "\nCategory: " + item.category +
           "\nTags: " + (item.tags || "None");
 
-        details.style.whiteSpace = "pre-line";
-
-        const deleteButton = document.createElement("button");
-        deleteButton.className = "delete-button";
-        deleteButton.textContent = "Remove from preview";
-
-        deleteButton.addEventListener("click", function() {
-          const index = records.indexOf(item);
-
-          if (index !== -1) {
-            URL.revokeObjectURL(item.url);
-            records.splice(index, 1);
-          }
-
-          renderGallery();
-          message.textContent = "Photo removed from this session.";
-        });
-
-        card.append(img, title, details, deleteButton);
+        card.append(img, title, details);
         gallery.appendChild(card);
       });
     }
+
+    // Load saved photos when the website opens.
+    loadPhotos();
+
   </script>
- 
- 
 </body>
 </html>

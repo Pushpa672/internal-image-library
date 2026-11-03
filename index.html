@@ -325,15 +325,16 @@ const uploadButton = document.getElementById("uploadButton");
 
           const metadata = decodeMetadata(file.name) || {};
 
-          return {
-            name: metadata.name || file.name,
-            project: metadata.project || "",
-            location: metadata.location || "",
-            category: metadata.category || "Project",
-            tags: metadata.tags || "",
-            url: result.data.publicUrl,
-            path: path
-          };
+         return {
+  name: metadata.name || file.name,
+  project: metadata.project || "",
+  location: metadata.location || "",
+  category: metadata.category || "Project",
+  tags: metadata.tags || "",
+  hash: metadata.hash || "",
+  url: result.data.publicUrl,
+  path: path
+};
         });
 
         renderGallery();
@@ -404,13 +405,13 @@ if (uploadedHashes.has(hash)) {
 
 uploadedHashes.add(hash);
           const metadata = {
-            name: file.name,
-            project: project,
-            location: location,
-            category: category,
-            tags: tags
-          };
-
+  name: file.name,
+  project: project,
+  location: location,
+  category: category,
+  tags: tags,
+  hash: hash
+};
           const encoded = encodeMetadata(metadata);
 
           const extension = (

@@ -405,7 +405,7 @@ const uploadButton = document.getElementById("uploadButton");
               : Date.now() + "-" + Math.random().toString(36).slice(2);
 
           const storagePath =
-            "images/" + uniqueId + "~" + encoded + "~" + extension;
+           "images/" + uniqueId + "." + encoded + "." + extension;
 
           const { error } = await supabaseClient.storage
   .from(BUCKET_NAME)

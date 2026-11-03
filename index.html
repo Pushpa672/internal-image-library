@@ -251,7 +251,8 @@ const uploadButton = document.getElementById("uploadButton");
     // Read photo information from its storage filename.
     function decodeMetadata(name) {
   try {
-    const parts = name.split("_");
+    const separator = name.includes("~") ? "~" : ".";
+    const parts = name.split(separator);
 
     if (parts.length < 3) {
       return null;
@@ -278,7 +279,6 @@ const uploadButton = document.getElementById("uploadButton");
     return null;
   }
 }
-
     // Load previously uploaded photos from Supabase.
     async function loadPhotos() {
       gallery.innerHTML = "";

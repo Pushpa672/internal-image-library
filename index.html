@@ -250,34 +250,34 @@ const uploadButton = document.getElementById("uploadButton");
 
     // Read photo information from its storage filename.
     function decodeMetadata(name) {
-      try {
-        const parts = name.split("~");
+  try {
+    const parts = name.split("_");
 
-        if (parts.length < 3) {
-          return null;
-        }
-
-        let encoded = parts[1]
-          .replace(/-/g, "+")
-          .replace(/_/g, "/");
-
-        while (encoded.length % 4) {
-          encoded += "=";
-        }
-
-        const binary = atob(encoded);
-        const bytes = Uint8Array.from(
-          binary,
-          function(character) {
-            return character.charCodeAt(0);
-          }
-        );
-
-        return JSON.parse(new TextDecoder().decode(bytes));
-      } catch (error) {
-        return null;
-      }
+    if (parts.length < 3) {
+      return null;
     }
+
+    let encoded = parts[1]
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+
+    while (encoded.length % 4) {
+      encoded += "=";
+    }
+
+    const binary = atob(encoded);
+    const bytes = Uint8Array.from(
+      binary,
+      function(character) {
+        return character.charCodeAt(0);
+      }
+    );
+
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch (error) {
+    return null;
+  }
+}
 
     // Load previously uploaded photos from Supabase.
     async function loadPhotos() {

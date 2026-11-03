@@ -387,7 +387,7 @@ async function getPhotoHash(file) {
 
       let uploaded = 0;
       const errors = [];
-
+const uploadedHashes = new Set();
       for (const file of files) {
         if (!file.type.startsWith("image/")) {
           errors.push(file.name + ": Not an image.");
@@ -395,6 +395,14 @@ async function getPhotoHash(file) {
         }
 
         try {
+          const hash = await getPhotoHash(file);
+
+if (uploadedHashes.has(hash)) {
+  errors.push(file.name + ": Duplicate photo skipped.");
+  continue;
+}
+
+uploadedHashes.add(hash);
           const metadata = {
             name: file.name,
             project: project,

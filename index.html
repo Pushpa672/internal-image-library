@@ -323,21 +323,21 @@ const uploadButton = document.getElementById("uploadButton");
             .from(BUCKET_NAME)
             .getPublicUrl(path);
 
-          const metadata = decodeMetadata(file.name) || {};
-
-         return {
-  name: metadata.name || file.name,
-  project: metadata.project || "",
-  location: metadata.location || "",
-  category: metadata.category || "Project",
-  tags: metadata.tags || "",
-  hash: metadata.hash || "",
-  url: result.data.publicUrl,
-  path: path
-};
-        });
-
-        renderGallery();
+            const metadata = decodeMetadata(file.name) || {};
+  
+           return {
+    name: metadata.name || file.name,
+    project: metadata.project || "",
+    location: metadata.location || "",
+    category: metadata.category || "Project",
+    tags: metadata.tags || "",
+    hash: metadata.hash || "",
+    url: result.data.publicUrl,
+    path: path
+  };
+          });
+  
+          renderGallery();
 
       } catch (error) {
         gallery.innerHTML = "";
@@ -388,7 +388,13 @@ async function getPhotoHash(file) {
 
       let uploaded = 0;
       const errors = [];
-const uploadedHashes = new Set();
+const uploadedHashes = new Set(
+  records
+    .map(function(item) {
+      return item.hash;
+    })
+    .filter(Boolean)
+);
       for (const file of files) {
         if (!file.type.startsWith("image/")) {
           errors.push(file.name + ": Not an image.");

@@ -219,32 +219,17 @@
     // Exact name of your Supabase Storage bucket.
     const BUCKET_NAME = "Office Image Library";
 
-    const supabaseClient = window.supabase.createClient(
+  const supabaseClient = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_KEY
 );
-       
 
-        if (
-          headers.get("Authorization") ===
-          "Bearer " + SUPABASE_KEY
-        ) {
-          headers.delete("Authorization");
-        }
-
-       
-        });
-      }
-    }
-  }
-);
-
-    const form = document.getElementById("uploadForm");
-    const photosInput = document.getElementById("photos");
-    const gallery = document.getElementById("gallery");
-    const searchInput = document.getElementById("search");
-    const message = document.getElementById("message");
-    const uploadButton = document.getElementById("uploadButton");
+const form = document.getElementById("uploadForm");
+const photosInput = document.getElementById("photos");
+const gallery = document.getElementById("gallery");
+const searchInput = document.getElementById("search");
+const message = document.getElementById("message");
+const uploadButton = document.getElementById("uploadButton");
 
     let records = [];
 
@@ -423,12 +408,12 @@
             "images/" + uniqueId + "~" + encoded + "~" + extension;
 
           const { error } = await supabaseClient.storage
-            .from(BUCKET_NAME)
-            .upload(storagePath, file, {
-              contentType: file.type,
-              cacheControl: "3600",
-              upsert: false
-            });
+  .from(BUCKET_NAME)
+  .upload(storagePath, file, {
+    contentType: file.type,
+    cacheControl: "3600",
+    upsert: false
+  });
 
           if (error) {
             throw error;

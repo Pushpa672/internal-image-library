@@ -352,7 +352,17 @@ const uploadButton = document.getElementById("uploadButton");
           "Please check your Supabase bucket and permissions.";
       }
     }
+// Calculate a unique fingerprint for each photo.
+async function getPhotoHash(file) {
+  const buffer = await file.arrayBuffer();
+  const hash = await crypto.subtle.digest("SHA-256", buffer);
 
+  return Array.from(new Uint8Array(hash))
+    .map(function(byte) {
+      return byte.toString(16).padStart(2, "0");
+    })
+    .join("");
+}
     // Upload selected photos to Supabase Storage.
     form.addEventListener("submit", async function(event) {
       event.preventDefault();

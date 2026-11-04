@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Internal Image Library</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f3f5f9;
+      color: #222;
+    }
+
+    header {
+      background: #17365d;
+      color: white;
+      padding: 24px;
+      text-align: center;
+    }
+
+    main {
+      max-width: 1000px;
+      margin: 30px auto;
+      padding: 20px;
+    }
+
+    .panel {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      margin-bottom: 25px;
+      box-shadow: 0 2px 10px #00000012;
+    }
+
+    label {
+      display: block;
+      margin-top: 14px;
+      font-weight: bold;
+    }
+
+    input, select, button {
+      font: inherit;
+      padding: 12px;
+      margin-top: 7px;
+      border-radius: 6px;
+    }
+
+    input, select {
+      width: 100%;
+      border: 1px solid #ccc;
+      background: white;
+    }
+
+    button {
+      border: none;
+      background: #17365d;
+      color: white;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #24518a;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .upload-button {
+      width: 100%;
+      margin-top: 20px;
+    }
+
+    #message {
+      color: #17365d;
+      font-weight: bold;
+      overflow-wrap: anywhere;
+    }
+
+    #gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 18px;
+      margin-top: 20px;
+    }
+
+    .photo {
+      background: white;
+      border-radius: 10px;
+      padding: 12px;
+      overflow-wrap: anywhere;
+      box-shadow: 0 2px 8px #00000012;
+    }
+
+    .photo img {
+      width: 100%;
+      height: 170px;
+      object-fit: cover;
+      border-radius: 6px;
+    }
+
+    .photo p {
+      font-size: 14px;
+      line-height: 1.5;
+      white-space: pre-line;
+    }
+
+    .empty-message {
+      color: #666;
+      padding: 12px 0;
+    }
+
+    footer {
+      text-align: center;
+      color: #666;
+      padding: 20px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Internal Image Library</h1>
+    <p>Upload, organize and find your office photos</p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Upload Images</h2>
+      <p>Select photos and enter their information below.</p>
+
+      <form id="uploadForm">
+        <label for="photos">Choose photos</label>
+        <input
+          id="photos"
+          type="file"
+          accept="image/*"
+          multiple
+          required
+        >
+
+        <label for="project">Project name</label>
+        <input
+          id="project"
+          type="text"
+          placeholder="Enter project name"
+        >
+
+        <label for="location">Location</label>
+        <input
+          id="location"
+          type="text"
+          placeholder="Enter location"
+        >
+
+        <label for="category">Category</label>
+        <select id="category">
+          <option>Project</option>
+          <option>Internal</option>
+          <option>Events</option>
+          <option>Profile / Candid</option>
+          <option>Partner Logos</option>
+        </select>
+
+        <label for="tags">Tags</label>
+        <input
+          id="tags"
+          type="text"
+          placeholder="meeting, event, team"
+        >
+
+        <button class="upload-button" id="uploadButton" type="submit">
+          Add Images
+        </button>
+      </form>
+
+      <p id="message" role="status"></p>
+    </section>
+
+    <section>
+      <h2>Search Image Library</h2>
+
+      <input
+        id="search"
+        type="search"
+        placeholder="Search by filename, project, location or tags"
+        aria-label="Search images"
+      >
+
+      <div id="gallery">
+        <p class="empty-message">Loading photos...</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Internal Image Library - First Prototype
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    // SUPABASE CONNECTION
+    const SUPABASE_URL =
+      "https://oxbvfhignorwbyuzdhbw.supabase.co";
+
+    // Replace this with your actual Supabase Publishable key.
+    const SUPABASE_KEY =
+  "sb_publishable_I2P3pOywSkhtV60VU1v4YQ_AS6azVCS";
+
+    // Exact name of your Supabase Storage bucket.
+    const BUCKET_NAME = "Office Image Library";
+
+  const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
+
+const form = document.getElementById("uploadForm");
+const photosInput = document.getElementById("photos");
+const gallery = document.getElementById("gallery");
+const searchInput = document.getElementById("search");
+const message = document.getElementById("message");
+const uploadButton = document.getElementById("uploadButton");
+
+    let records = [];
+
+    // Encode photo information into its storage filename.
+    function encodeMetadata(data) {
+      const bytes = new TextEncoder().encode(JSON.stringify(data));
+      let binary = "";
+
+      bytes.forEach(function(byte) {
+        binary += String.fromCharCode(byte);
+      });
+
+      return btoa(binary)
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/g, "");
+    }
+
+    // Read photo information from its storage filename.
+    function decodeMetadata(name) {
+  try {
+    const separator = name.includes("~") ? "~" : ".";
+    const parts = name.split(separator);
+
+    if (parts.length < 3) {
+      return null;
+    }
+
+    let encoded = parts[1]
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+
+    while (encoded.length % 4) {
+      encoded += "=";
+    }
+
+    const binary = atob(encoded);
+    const bytes = Uint8Array.from(
+      binary,
+      function(character) {
+        return character.charCodeAt(0);
+      }
+    );
+
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch (error) {
+    return null;
+  }
+}
+    // Load previously uploaded photos from Supabase.
+    async function loadPhotos() {
+      gallery.innerHTML = "";
+      const allFiles = [];
+      let offset = 0;
+
+      try {
+        while (true) {
+          const { data, error } =
+            await supabaseClient.storage
+              .from(BUCKET_NAME)
+              .list("images", {
+                limit: 1000,
+                offset: offset,
+                sortBy: {
+                  column: "created_at",
+                  order: "desc"
+                }
+              });
+
+          if (error) {
+            throw error;
+          }
+
+          const files = data.filter(function(file) {
+            return file.id && file.name;
+          });
+
+          allFiles.push(...files);
+
+          if (data.length < 1000) {
+            break;
+          }
+
+          offset += 1000;
+        }
+
+        records = allFiles.map(function(file) {
+          const path = "images/" + file.name;
+
+          const result = supabaseClient.storage
+            .from(BUCKET_NAME)
+            .getPublicUrl(path);
+
+            const metadata = decodeMetadata(file.name) || {};
+  
+           return {
+    name: metadata.name || file.name,
+    project: metadata.project || "",
+    location: metadata.location || "",
+    category: metadata.category || "Project",
+    tags: metadata.tags || "",
+    hash: metadata.hash || "",
+    url: result.data.publicUrl,
+    path: path
+  };
+          });
+  
+          renderGallery();
+
+      } catch (error) {
+        gallery.innerHTML = "";
+
+        const empty = document.createElement("p");
+        empty.className = "empty-message";
+        empty.textContent =
+          "Could not load photos: " + error.message;
+
+        gallery.appendChild(empty);
+
+        message.textContent =
+          "Please check your Supabase bucket and permissions.";
+      }
+    }
+// Calculate a unique fingerprint for each photo.
+async function getPhotoHash(file) {
+  const buffer = await file.arrayBuffer();
+  const hash = await crypto.subtle.digest("SHA-256", buffer);
+
+  return Array.from(new Uint8Array(hash))
+    .map(function(byte) {
+      return byte.toString(16).padStart(2, "0");
+    })
+    .join("");
+}
+    async function getExistingPhotoHashes() {
+  const hashes = new Set();
+  let offset = 0;
+
+  while (true) {
+    const { data, error } = await supabaseClient.storage
+      .from(BUCKET_NAME)
+      .list("images", {
+        limit: 1000,
+        offset: offset
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    for (const file of data) {
+      if (!file.id || !file.name) continue;
+
+      const metadata = decodeMetadata(file.name);
+
+      if (metadata && metadata.hash) {
+        hashes.add(metadata.hash);
+      }
+    }
+
+    if (data.length < 1000) break;
+
+    offset += 1000;
+  }
+
+  return hashes;
+}// Upload selected photos to Supabase Storage.
+    form.addEventListener("submit", async function(event) {
+      event.preventDefault();
+
+      const files = Array.from(photosInput.files);
+      const project =
+        document.getElementById("project").value.trim();
+      const location =
+        document.getElementById("location").value.trim();
+      const category =
+        document.getElementById("category").value;
+      const tags =
+        document.getElementById("tags").value.trim();
+
+      if (files.length === 0) {
+        message.textContent = "Please select at least one photo.";
+        return;
+      }
+
+      uploadButton.disabled = true;
+      message.textContent = "Uploading photos. Please wait...";
+
+      let uploaded = 0;
+      const errors = [];
+let uploadedHashes;
+
+try {
+  uploadedHashes = await getExistingPhotoHashes();
+} catch (error) {
+  uploadButton.disabled = false;
+  message.textContent =
+    "Could not check existing photos: " + error.message +
+    ". No photos were uploaded.";
+  return;
+}
+      for (const file of files) {
+        if (!file.type.startsWith("image/")) {
+          errors.push(file.name + ": Not an image.");
+          continue;
+        }
+
+        try {
+          const hash = await getPhotoHash(file);
+
+if (uploadedHashes.has(hash)) {
+  errors.push(file.name + ": Duplicate photo skipped.");
+  continue;
+}
+
+uploadedHashes.add(hash);
+          const metadata = {
+  name: file.name,
+  project: project,
+  location: location,
+  category: category,
+  tags: tags,
+  hash: hash
+};
+          const encoded = encodeMetadata(metadata);
+
+          const extension = (
+            file.name.split(".").pop() || "jpg"
+          ).toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+
+          const uniqueId =
+            (window.crypto && window.crypto.randomUUID)
+              ? window.crypto.randomUUID()
+              : Date.now() + "-" + Math.random().toString(36).slice(2);
+
+          const storagePath =
+           "images/" + uniqueId + "." + encoded + "." + extension;
+
+          const { error } = await supabaseClient.storage
+  .from(BUCKET_NAME)
+  .upload(storagePath, file, {
+    contentType: file.type,
+    cacheControl: "3600",
+    upsert: false
+  });
+
+          if (error) {
+            throw error;
+          }
+
+          uploaded++;
+
+        } catch (error) {
+          errors.push(file.name + ": " + error.message);
+        }
+      }
+
+      uploadButton.disabled = false;
+
+      if (uploaded > 0) {
+        message.textContent =
+          uploaded + " photo(s) uploaded successfully to Supabase.";
+        form.reset();
+        await loadPhotos();
+      } else {
+        message.textContent = "No photos were uploaded.";
+      }
+
+      if (errors.length > 0) {
+        message.textContent += " Errors: " + errors.join(" | ");
+      }
+    });
+
+    // Search photos.
+    searchInput.addEventListener("input", renderGallery);
+
+    // Display photos and their information.
+    function renderGallery() {
+      gallery.replaceChildren();
+
+      const query = searchInput.value.toLowerCase().trim();
+
+      const filtered = records.filter(function(item) {
+        const searchable = [
+          item.name,
+          item.project,
+          item.location,
+          item.category,
+          item.tags
+        ].join(" ").toLowerCase();
+
+        return searchable.includes(query);
+      });
+
+      if (filtered.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "empty-message";
+        empty.textContent = records.length === 0
+          ? "No photos added yet."
+          : "No matching photos found.";
+
+        gallery.appendChild(empty);
+        return;
+      }
+
+      filtered.forEach(function(item) {
+        const card = document.createElement("article");
+        card.className = "photo";
+
+        const img = document.createElement("img");
+        img.src = item.url;
+        img.alt = item.name;
+        img.loading = "lazy";
+
+        const title = document.createElement("strong");
+        title.textContent = item.name;
+
+        const details = document.createElement("p");
+        details.textContent =
+          "Project: " + (item.project || "Not specified") +
+          "\nLocation: " + (item.location || "Not specified") +
+          "\nCategory: " + item.category +
+          "\nTags: " + (item.tags || "None");
+
+        const downloadButton = document.createElement("button");
+downloadButton.textContent = "Download";
+
+downloadButton.addEventListener("click", function() {
+  const link = document.createElement("a");
+  link.href = item.url;
+  link.download = item.name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+});
+
+card.append(img, title, details, downloadButton);
+gallery.appendChild(card);
+      });
+    }
+
+    // Load saved photos when the website opens.
+    loadPhotos();
+
+  </script>
+</body>
+</html>

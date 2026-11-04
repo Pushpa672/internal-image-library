@@ -127,20 +127,6 @@
 </head>
 
 <body>
-  <section id="loginPanel" class="panel">
-  <h2>Employee Login</h2>
-
-  <form id="loginForm">
-    <label for="loginEmail">Email</label>
-    <input id="loginEmail" type="email" required>
-
-    <label for="loginPassword">Password</label>
-    <input id="loginPassword" type="password" required>
-
-    <button type="submit">Log In</button>
-    <p id="loginMessage"></p>
-  </form>
-</section>
   <header>
     <h1>Internal Image Library</h1>
     <p>Upload, organize and find your office photos</p>
@@ -232,55 +218,7 @@
 
     // Exact name of your Supabase Storage bucket.
     const BUCKET_NAME = "Office Image Library";
-const loginPanel = document.getElementById("loginPanel");
-const loginForm = document.getElementById("loginForm");
-const loginMessage = document.getElementById("loginMessage");
 
-const appHeader = document.querySelector("header");
-const appMain = document.querySelector("main");
-const appFooter = document.querySelector("footer");
-
-appHeader.style.display = "none";
-appMain.style.display = "none";
-appFooter.style.display = "none";
-
-loginForm.addEventListener("submit", async function(event) {
-  event.preventDefault();
-
-  const email = document.getElementById("loginEmail").value.trim();
-  const password = document.getElementById("loginPassword").value;
-
-  loginMessage.textContent = "Logging in...";
-
-  const { data, error } = await supabaseClient.auth.signInWithPassword({
-    email: email,
-    password: password
-  });
-
-  if (error) {
-    loginMessage.textContent = error.message;
-    return;
-  }
-
-  const { data: roleData, error: roleError } = await supabaseClient
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", data.user.id)
-    .single();
-
-  if (roleError || !roleData) {
-    loginMessage.textContent = "Your account role is not set. Please contact the administrator.";
-    await supabaseClient.auth.signOut();
-    return;
-  }
-
-  loginPanel.style.display = "none";
-  appHeader.style.display = "block";
-  appMain.style.display = "block";
-  appFooter.style.display = "block";
-
-  loginMessage.textContent = "";
-});
   const supabaseClient = window.supabase.createClient(
   SUPABASE_URL,
   SUPABASE_KEY
@@ -385,21 +323,21 @@ const uploadButton = document.getElementById("uploadButton");
             .from(BUCKET_NAME)
             .getPublicUrl(path);
 
-            const metadata = decodeMetadata(file.name) || {};
-  
-           return {
-    name: metadata.name || file.name,
-    project: metadata.project || "",
-    location: metadata.location || "",
-    category: metadata.category || "Project",
-    tags: metadata.tags || "",
-    hash: metadata.hash || "",
-    url: result.data.publicUrl,
-    path: path
-  };
-          });
-  
-          renderGallery();
+          const metadata = decodeMetadata(file.name) || {};
+
+         return {
+  name: metadata.name || file.name,
+  project: metadata.project || "",
+  location: metadata.location || "",
+  category: metadata.category || "Project",
+  tags: metadata.tags || "",
+  hash: metadata.hash || "",
+  url: result.data.publicUrl,
+  path: path
+};
+        });
+
+        renderGallery();
 
       } catch (error) {
         gallery.innerHTML = "";
@@ -426,39 +364,7 @@ async function getPhotoHash(file) {
     })
     .join("");
 }
-    async function getExistingPhotoHashes() {
-  const hashes = new Set();
-  let offset = 0;
-
-  while (true) {
-    const { data, error } = await supabaseClient.storage
-      .from(BUCKET_NAME)
-      .list("images", {
-        limit: 1000,
-        offset: offset
-      });
-
-    if (error) {
-      throw error;
-    }
-
-    for (const file of data) {
-      if (!file.id || !file.name) continue;
-
-      const metadata = decodeMetadata(file.name);
-
-      if (metadata && metadata.hash) {
-        hashes.add(metadata.hash);
-      }
-    }
-
-    if (data.length < 1000) break;
-
-    offset += 1000;
-  }
-
-  return hashes;
-}// Upload selected photos to Supabase Storage.
+    // Upload selected photos to Supabase Storage.
     form.addEventListener("submit", async function(event) {
       event.preventDefault();
 
@@ -482,17 +388,7 @@ async function getPhotoHash(file) {
 
       let uploaded = 0;
       const errors = [];
-let uploadedHashes;
-
-try {
-  uploadedHashes = await getExistingPhotoHashes();
-} catch (error) {
-  uploadButton.disabled = false;
-  message.textContent =
-    "Could not check existing photos: " + error.message +
-    ". No photos were uploaded.";
-  return;
-}
+const uploadedHashes = new Set();
       for (const file of files) {
         if (!file.type.startsWith("image/")) {
           errors.push(file.name + ": Not an image.");
